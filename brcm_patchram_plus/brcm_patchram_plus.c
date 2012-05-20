@@ -461,9 +461,6 @@ parse_cmd_line(int argc, char **argv)
 void
 init_uart()
 {
-#ifdef BCM_SEMC
-	usleep(150*1000);
-#endif
 	tcflush(uart_fd, TCIOFLUSH);
 	tcgetattr(uart_fd, &termios);
 
@@ -575,9 +572,7 @@ proc_patchram()
 
 	read_event(uart_fd, buffer);
 
-#ifndef BOARD_HAS_BCM4330
-    read(uart_fd, &buffer[0], 2);
-#endif
+	read(uart_fd, &buffer[0], 2);
 
 	usleep(50000);
 
@@ -777,18 +772,16 @@ read_default_bdaddr()
 {
 	int sz;
 	int fd;
-/* TAG JB 03/11/2011 : Read BDADDR from rfkill (who reads bdaddr from smem)
- * Might be removed if we can use the ro.bt.bdaddr_path property instead. More clean
- */
-	char path[PROPERTY_VALUE_MAX] = "/sys/module/board_htcraphael_rfkill/parameters/bdaddr";
-/* End of TAG */
-	char bdaddr[18];
 
-#if 0	// Might be reenabled if we can use it
+	char path[PROPERTY_VALUE_MAX];
+
+	char bdaddr[18];
+	int len = 17;
+	memset(bdaddr, 0, (len + 1) * sizeof(char));
+
 	property_get("ro.bt.bdaddr_path", path, "");
 	if (path[0] == 0)
 		return;
-#endif
 
 	fd = open(path, O_RDONLY);
 	if (fd < 0) {
@@ -797,19 +790,22 @@ read_default_bdaddr()
 		return;
 	}
 
-	sz = read(fd, bdaddr, sizeof(bdaddr));
+	sz = read(fd, bdaddr, len);
 	if (sz < 0) {
 		fprintf(stderr, "read(%s) failed: %s (%d)", path, strerror(errno),
 				errno);
 		close(fd);
 		return;
-	} else if (sz != sizeof(bdaddr)) {
+	} else if (sz != len) {
 		fprintf(stderr, "read(%s) unexpected size %d", path, sz);
 		close(fd);
 		return;
 	}
 
-	printf("Read default bdaddr of %s\n", bdaddr);
+	if (debug) {
+		printf("Read default bdaddr of %s\n", bdaddr);
+	}
+
 	parse_bdaddr(bdaddr);
 }
 
@@ -869,5 +865,6 @@ main (int argc, char **argv)
 			sleep(UINT_MAX);
 		}
 	}
+
 	exit(0);
 }
